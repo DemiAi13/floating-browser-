@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Floating Chrome PWA</title>
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#1e293b">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" id="pwa-manifest">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: #0f172a;
+            background-image: radial-gradient(circle at 50% 50%, #1e293b 0%, #0f172a 100%);
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+
+        /* Tombol Install Custom */
+        #installBtn {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 2000;
+            background: #3b82f6;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 50px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .window {
+            position: absolute;
+            width: 85vw;
+            max-width: 800px;
+            height: 70vh;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 10;
+            touch-action: none;
+        }
+
+        .window-header {
+            background: #f8fafc;
+            padding: 12px;
+            cursor: move;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #e2e8f0;
+            user-select: none;
+        }
+
+        .dots { display: flex; gap: 6px; margin-right: 15px; }
+        .dot { width: 12px; height: 12px; border-radius: 50%; cursor: pointer; }
+        .red { background: #ff5f56; }
+        .yellow { background: #ffbd2e; }
+        .green { background: #27c93f; }
+
+        .browser-body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .search-bar {
+            width: 100%;
+            max-width: 500px;
+            border: 1px solid #dfe1e5;
+            border-radius: 24px;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            margin-top: 20px;
+            background: white;
+        }
+
+        .search-bar:hover {
+            box-shadow: 0 1px 6px rgba(32,33,36,.28);
+        }
+
+        .search-bar input {
+            flex: 1;
+            border: none;
+            outline: none;
+            margin-left: 10px;
+            font-size: 16px;
+        }
+
+        #desktop {
+            height: 100%;
+            padding: 20px;
+        }
+
+        .app-icon {
+            width: 80px;
+            height: 80px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: white;
+            cursor: pointer;
+        }
+        
+        .app-icon div {
+            width: 60px;
+            height: 60px;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(5px);
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            margin-bottom: 5px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="desktop">
+        <div class="app-icon" onclick="toggleWin()">
+            <div>🌐</div>
+            <span class="text-xs">Browser</span>
+        </div>
+    </div>
+
+    <div id="win" class="window" style="top: 10%; left: 7.5%;">
+        <div class="window-header" id="header">
+            <div class="dots">
+                <div class="dot red" onclick="toggleWin()"></div>
+                <div class="dot yellow"></div>
+                <div class="dot green"></div>
+            </div>
+            <div class="text-xs text-slate-400 font-medium">Google Chrome Lite</div>
+        </div>
+        
+        <div class="browser-body">
+            <h1 class="text-4xl font-bold mb-8">
+                <span class="text-blue-500">G</span><span class="text-red-500">o</span><span class="text-yellow-500">o</span><span class="text-blue-500">g</span><span class="text-green-500">l</span><span class="text-red-500">e</span>
+            </h1>
+            <div class="search-bar">
+                <span>🔍</span>
+                <input type="text" id="searchInput" placeholder="Cari di Google..." onkeydown="if(event.key==='Enter') search()">
+            </div>
+            <div class="mt-8 flex gap-4">
+                <button onclick="search()" class="bg-slate-100 px-4 py-2 rounded text-sm hover:bg-slate-200">Cari</button>
+                <button class="bg-slate-100 px-4 py-2 rounded text-sm hover:bg-slate-200">Beruntung</button>
+            </div>
+            <p class="mt-10 text-[10px] text-slate-400 max-w-xs">
+                Aplikasi ini mendukung PWA. Untuk menginstal, host file ini di server HTTPS dan sediakan file sw.js.
+            </p>
+        </div>
+    </div>
+
+    <button id="installBtn">Instal Aplikasi</button>
+
+    <script>
+        // --- LOGIKA JENDELA MELAYANG ---
+        const win = document.getElementById('win');
+        const header = document.getElementById('header');
+        let isDragging = false;
+        let offset = { x: 0, y: 0 };
+
+        function initDrag(e) {
+            isDragging = true;
+            const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+            const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+            offset.x = clientX - win.offsetLeft;
+            offset.y = clientY - win.offsetTop;
+            win.style.zIndex = 100;
+        }
+
+        function doDrag(e) {
+            if (!isDragging) return;
+            const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+            const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+            win.style.left = (clientX - offset.x) + 'px';
+            win.style.top = (clientY - offset.y) + 'px';
+        }
+
+        function endDrag() { isDragging = false; }
+
+        header.addEventListener('mousedown', initDrag);
+        header.addEventListener('touchstart', initDrag);
+        window.addEventListener('mousemove', doDrag);
+        window.addEventListener('touchmove', doDrag);
+        window.addEventListener('mouseup', endDrag);
+        window.addEventListener('touchend', endDrag);
+
+        function toggleWin() {
+            win.style.display = win.style.display === 'none' ? 'flex' : 'none';
+        }
+
+        function search() {
+            const q = document.getElementById('searchInput').value;
+            if(q) window.open('https://www.google.com/search?q=' + encodeURIComponent(q), '_blank');
+        }
+
+        // --- LOGIKA PWA ---
+        
+        // Memperbaiki masalah Blob URL pada Service Worker dengan menghapus registrasi blob
+        // Service worker harus berasal dari file fisik di domain yang sama (HTTPS)
+        if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
+            // Kita hanya mencoba mendaftar jika file sw.js benar-benar ada di server
+            navigator.serviceWorker.register('/sw.js').catch(err => {
+                console.log("Service Worker tidak terdaftar (normal di lingkungan preview):", err.message);
+            });
+        }
+
+        // Penanganan Manifest Dinamis tetap dipertahankan
+        try {
+            const manifest = {
+                "name": "Floating Chrome App",
+                "short_name": "FloatChrome",
+                "start_url": window.location.href,
+                "display": "standalone",
+                "background_color": "#0f172a",
+                "theme_color": "#1e293b",
+                "icons": [{
+                    "src": "https://cdn-icons-png.flaticon.com/512/888/888846.png",
+                    "sizes": "512x512",
+                    "type": "image/png"
+                }]
+            };
+            const stringManifest = JSON.stringify(manifest);
+            const blob = new Blob([stringManifest], {type: 'application/json'});
+            document.getElementById('pwa-manifest').setAttribute('href', URL.createObjectURL(blob));
+        } catch (e) {
+            console.error("Gagal membuat manifest dinamis", e);
+        }
+
+        let deferredPrompt;
+        const installBtn = document.getElementById('installBtn');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installBtn.style.display = 'block';
+        });
+
+        installBtn.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    installBtn.style.display = 'none';
+                }
+                deferredPrompt = null;
+            }
+        });
+    </script>
+</body>
+</html>
